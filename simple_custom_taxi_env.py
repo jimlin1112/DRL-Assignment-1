@@ -4,6 +4,7 @@ import importlib.util
 import time
 from IPython.display import clear_output
 import random
+import torch
 # This environment allows you to verify whether your program runs correctly during testing, 
 # as it follows the same observation format from `env.reset()` and `env.step()`. 
 # However, keep in mind that this is just a simplified environment. 
@@ -75,6 +76,8 @@ class SimpleTaxiEnv():
         else:
             if action == 4:  # PICKUP
                 if self.taxi_pos == self.passenger_loc:
+                    if not self.passenger_picked_up:
+                        reward += 10
                     self.passenger_picked_up = True
                     self.passenger_loc = self.taxi_pos  
                 else:
@@ -85,11 +88,11 @@ class SimpleTaxiEnv():
                         reward += 50
                         return self.get_state(), reward -0.1, True, {}
                     else:
-                        reward -=10
+                        reward -= 10
                     self.passenger_picked_up = False
                     self.passenger_loc = self.taxi_pos
                 else:
-                    reward -=10
+                    reward -= 10
                     
         reward -= 0.1  
 
@@ -175,6 +178,7 @@ class SimpleTaxiEnv():
         actions = ["Move South", "Move North", "Move East", "Move West", "Pick Up", "Drop Off"]
         return actions[action] if action is not None else "None"
 
+from student_agent import policy_model
 
 def run_agent(agent_file, env_config, render=False):
     spec = importlib.util.spec_from_file_location("student_agent", agent_file)
@@ -200,9 +204,11 @@ def run_agent(agent_file, env_config, render=False):
         action = student_agent.get_action(obs)
 
         obs, reward, done, _ = env.step(action)
-        print('obs=',obs)
+        # print('obs=',obs)
         total_reward += reward
         step_count += 1
+
+        student_agent.policy_model.rewards.append(reward)
 
         taxi_row, taxi_col, _,_,_,_,_,_,_,_,obstacle_north, obstacle_south, obstacle_east, obstacle_west, passenger_look,destination_look = obs
 
@@ -210,6 +216,8 @@ def run_agent(agent_file, env_config, render=False):
             env.render_env((taxi_row, taxi_col),
                            action=action, step=step_count, fuel=env.current_fuel)
 
+    student_agent.policy_model.update()
+    
     print(f"Agent Finished in {step_count} steps, Score: {total_reward}")
     return total_reward
 
@@ -218,5 +226,7 @@ if __name__ == "__main__":
         "fuel_limit": 5000
     }
     
-    agent_score = run_agent("student_agent.py", env_config, render=True)
-    print(f"Final Score: {agent_score}")
+    for episode in range(5000):
+        agent_score = run_agent("student_agent.py", env_config, render=False)
+        print(f"Final Score: {agent_score}, Episode: {episode+1}")
+        torch.save(policy_model.state_dict(), "policy_model.pth")

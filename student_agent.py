@@ -3,8 +3,87 @@ import numpy as np
 import pickle
 import random
 import gym
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.distributions import Categorical
+import torch.nn.functional as F
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# print(device)
+
+
+class Policy(nn.Module):
+    def __init__(self):
+        super(Policy, self).__init__()
+        self.affine1 = nn.Linear(16, 512)
+        self.affine2 = nn.Linear(512, 256)
+        self.affine3 = nn.Linear(256, 128)  # 再加一層
+        self.affine4 = nn.Linear(128, 6)    # 輸出層
+        self.dropout = nn.Dropout(p=0.1)
+
+        self.saved_log_probs = []
+        self.rewards = []
+        self.ff = 0
+
+    def forward(self, x):
+        x = self.affine1(x)
+        x = F.relu(x)
+        x = self.dropout(x)
+        x = self.affine2(x)
+        x = F.relu(x)
+        x = self.dropout(x)
+        x = self.affine3(x)
+        x = F.relu(x)
+        x = self.dropout(x)
+        action_scores = self.affine4(x)
+        return F.softmax(action_scores, dim=0)
+
+
+
+
+    def update(self, gamma=0.99):
+        reward2 = []
+        R = 0
+        for r in reversed(policy_model.rewards):
+            R = r + gamma * R
+            reward2.append(R)
+        policy_model.rewards = reward2[::-1]
+
+        rewards = torch.tensor(policy_model.rewards).to(device)
+        rewards = (rewards - rewards.mean()) / (rewards.std() + eps)
+        
+        policy_loss = []
+        for log_prob, R in zip(policy_model.saved_log_probs, rewards):
+            policy_loss.append(-log_prob * R)
+
+        optimizer.zero_grad()
+        policy_loss = torch.stack(policy_loss).sum()
+        policy_loss.backward()
+        optimizer.step()
+        del policy_model.saved_log_probs[:]
+        del policy_model.rewards[:]
+
+policy_model = Policy().to(device)
+policy_model.load_state_dict(torch.load("policy_model.pth"))
+policy_model.eval()
+
+optimizer = optim.Adam(policy_model.parameters(), lr=0.001)
+eps = np.finfo(np.float32).eps.item()
 
 def get_action(obs):
+    obs = torch.tensor(obs, dtype=torch.float32).to(device)
+    probs = policy_model(obs)
+    # if policy_model.ff == 1000:
+    #     policy_model.ff += 1
+    #     print(probs)
+    # elif policy_model.ff < 1000:
+    #     policy_model.ff += 1
+
+    m = Categorical(probs)
+    action = m.sample()
+    policy_model.saved_log_probs.append(m.log_prob(action))
+    return action.item()
     
     # TODO: Train your own agent
     # HINT: If you're using a Q-table, consider designing a custom key based on `obs` to store useful information.
