@@ -16,12 +16,12 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class Policy(nn.Module):
     def __init__(self):
         super(Policy, self).__init__()
-        self.affine1 = nn.Linear(16, 512)
-        self.affine2 = nn.Linear(512, 256)
-        self.affine3 = nn.Linear(256, 128)  # 再加一層
-        self.affine4 = nn.Linear(128, 6)    # 輸出層
+        self.affine1 = nn.Linear(16, 64)
+        self.affine2 = nn.Linear(64, 32)
+        self.affine3 = nn.Linear(32, 6)    # 輸出層
         self.dropout = nn.Dropout(p=0.1)
 
+        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         self.saved_log_probs = []
         self.rewards = []
         self.ff = 0
@@ -33,10 +33,7 @@ class Policy(nn.Module):
         x = self.affine2(x)
         x = F.relu(x)
         x = self.dropout(x)
-        x = self.affine3(x)
-        x = F.relu(x)
-        x = self.dropout(x)
-        action_scores = self.affine4(x)
+        action_scores = self.affine3(x)
         return F.softmax(action_scores, dim=0)
 
 
@@ -45,30 +42,30 @@ class Policy(nn.Module):
     def update(self, gamma=0.99):
         reward2 = []
         R = 0
-        for r in reversed(policy_model.rewards):
+        for r in reversed(self.rewards):
             R = r + gamma * R
             reward2.append(R)
-        policy_model.rewards = reward2[::-1]
+        self.rewards = reward2[::-1]
 
-        rewards = torch.tensor(policy_model.rewards).to(device)
-        rewards = (rewards - rewards.mean()) / (rewards.std() + eps)
+        # rewards = torch.tensor(self.rewards).to(device)
+        # rewards = (rewards - rewards.mean()) / (rewards.std() + eps)
         
         policy_loss = []
-        for log_prob, R in zip(policy_model.saved_log_probs, rewards):
+        for log_prob, R in zip(self.saved_log_probs, self.rewards):
             policy_loss.append(-log_prob * R)
 
-        optimizer.zero_grad()
+        self.optimizer.zero_grad()
         policy_loss = torch.stack(policy_loss).sum()
         policy_loss.backward()
-        optimizer.step()
-        del policy_model.saved_log_probs[:]
-        del policy_model.rewards[:]
+        self.optimizer.step()
+        del self.saved_log_probs[:]
+        del self.rewards[:]
 
 policy_model = Policy().to(device)
 policy_model.load_state_dict(torch.load("policy_model.pth"))
 policy_model.eval()
 
-optimizer = optim.Adam(policy_model.parameters(), lr=0.001)
+
 eps = np.finfo(np.float32).eps.item()
 
 def get_action(obs):
@@ -94,4 +91,3 @@ def get_action(obs):
 
     return random.choice([0, 1, 2, 3, 4, 5]) # Choose a random action
     # You can submit this random agent to evaluate the performance of a purely random strategy.
-

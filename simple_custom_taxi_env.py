@@ -217,6 +217,7 @@ def run_agent(agent_file, env_config, render=False):
                            action=action, step=step_count, fuel=env.current_fuel)
 
     student_agent.policy_model.update()
+    torch.save(student_agent.policy_model.state_dict(), "policy_model.pth")
     
     print(f"Agent Finished in {step_count} steps, Score: {total_reward}")
     return total_reward
@@ -229,4 +230,3 @@ if __name__ == "__main__":
     for episode in range(5000):
         agent_score = run_agent("student_agent.py", env_config, render=False)
         print(f"Final Score: {agent_score}, Episode: {episode+1}")
-        torch.save(policy_model.state_dict(), "policy_model.pth")
