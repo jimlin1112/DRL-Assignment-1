@@ -19,7 +19,7 @@ class Policy(nn.Module):
         self.affine1 = nn.Linear(16, 64)
         self.affine2 = nn.Linear(64, 32)
         self.affine3 = nn.Linear(32, 6)    # 輸出層
-        self.dropout = nn.Dropout(p=0.1)
+        self.dropout = nn.Dropout(p=0.05)
 
         self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         self.saved_log_probs = []
@@ -61,7 +61,7 @@ class Policy(nn.Module):
         del self.saved_log_probs[:]
         del self.rewards[:]
 
-policy_model = Policy().to(device)
+policy_model = Policy()
 policy_model.load_state_dict(torch.load("policy_model.pth"))
 policy_model.eval()
 
@@ -69,7 +69,7 @@ policy_model.eval()
 eps = np.finfo(np.float32).eps.item()
 
 def get_action(obs):
-    obs = torch.tensor(obs, dtype=torch.float32).to(device)
+    obs = torch.tensor(obs, dtype=torch.float32)
     probs = policy_model(obs)
     # if policy_model.ff == 1000:
     #     policy_model.ff += 1
