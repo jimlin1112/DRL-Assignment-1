@@ -227,6 +227,6 @@ if __name__ == "__main__":
         "fuel_limit": 5000
     }
     
-    for episode in range(5000):
+    for episode in range(2000):
         agent_score = run_agent("student_agent.py", env_config, render=False)
         print(f"Final Score: {agent_score}, Episode: {episode+1}")

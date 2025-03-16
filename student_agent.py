@@ -10,21 +10,25 @@ from torch.distributions import Categorical
 import torch.nn.functional as F
 
 # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = "cpu"
 # print(device)
 
 
 class Policy(nn.Module):
-    def __init__(self):
+    def __init__(self, lr=0.001, gamma=0.99, dropout=0.1):
         super(Policy, self).__init__()
-        self.affine1 = nn.Linear(16, 64)
-        self.affine2 = nn.Linear(64, 32)
-        self.affine3 = nn.Linear(32, 6)    # 輸出層
-        self.dropout = nn.Dropout(p=0.05)
+        self.affine1 = nn.Linear(16, 128)
+        self.affine2 = nn.Linear(128, 64)
+        self.affine3 = nn.Linear(64, 6)    # 輸出層
+        self.dropout = nn.Dropout(p=dropout)
 
-        self.optimizer = optim.Adam(self.parameters(), lr=0.001)
         self.saved_log_probs = []
         self.rewards = []
         self.ff = 0
+        self.gamma = gamma
+        self.lr = lr
+
+        self.optimizer = optim.Adam(self.parameters(), lr=self.lr)
 
     def forward(self, x):
         x = self.affine1(x)
@@ -39,19 +43,20 @@ class Policy(nn.Module):
 
 
 
-    def update(self, gamma=0.99):
+    def update(self):
+        gamma = self.gamma
         reward2 = []
         R = 0
         for r in reversed(self.rewards):
             R = r + gamma * R
             reward2.append(R)
-        self.rewards = reward2[::-1]
+        rewards = reward2[::-1]
 
-        # rewards = torch.tensor(self.rewards).to(device)
-        # rewards = (rewards - rewards.mean()) / (rewards.std() + eps)
+        rewards = torch.tensor(self.rewards).to(device)
+        rewards = (rewards - rewards.mean()) / (rewards.std() + eps)
         
         policy_loss = []
-        for log_prob, R in zip(self.saved_log_probs, self.rewards):
+        for log_prob, R in zip(self.saved_log_probs, rewards):
             policy_loss.append(-log_prob * R)
 
         self.optimizer.zero_grad()
@@ -61,7 +66,9 @@ class Policy(nn.Module):
         del self.saved_log_probs[:]
         del self.rewards[:]
 
-policy_model = Policy()
+policy_model = Policy(lr=0.001, gamma=0.99, dropout=0.1)
+# policy_model.load_state_dict(torch.load("policy_model.pth"))
+
 policy_model.load_state_dict(torch.load("policy_model.pth", map_location=torch.device('cpu')))
 policy_model.eval()
 
