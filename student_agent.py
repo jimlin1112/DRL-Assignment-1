@@ -62,7 +62,7 @@ class Policy(nn.Module):
         del self.rewards[:]
 
 policy_model = Policy()
-policy_model.load_state_dict(torch.load("policy_model.pth"))
+policy_model.load_state_dict(torch.load("policy_model.pth", map_location=torch.device('cpu')))
 policy_model.eval()
 
 
