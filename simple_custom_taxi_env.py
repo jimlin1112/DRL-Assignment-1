@@ -77,18 +77,18 @@ class SimpleTaxiEnv():
             if action == 4:  # PICKUP
                 if self.taxi_pos == self.passenger_loc:
                     if not self.passenger_picked_up:
-                        reward += 10
+                        reward += 100
                     self.passenger_picked_up = True
                     self.passenger_loc = self.taxi_pos  
                 else:
-                    reward = -10  
+                    reward = -10
             elif action == 5:  # DROPOFF
                 if self.passenger_picked_up:
                     if self.taxi_pos == self.destination:
-                        reward += 50
+                        reward += 100000
                         return self.get_state(), reward -0.1, True, {}
                     else:
-                        reward -= 10
+                        reward -= 100
                     self.passenger_picked_up = False
                     self.passenger_loc = self.taxi_pos
                 else:
@@ -219,7 +219,7 @@ def run_agent(agent_file, env_config, render=False):
     student_agent.policy_model.update()
     torch.save(student_agent.policy_model.state_dict(), "policy_model.pth")
     
-    print(f"Agent Finished in {step_count} steps, Score: {total_reward}")
+    print(f"Agent Finished in {step_count} steps, ", end="")
     return total_reward
 
 if __name__ == "__main__":
@@ -227,6 +227,7 @@ if __name__ == "__main__":
         "fuel_limit": 5000
     }
     
-    for episode in range(2000):
+    for episode in range(10000):
         agent_score = run_agent("student_agent.py", env_config, render=False)
-        print(f"Final Score: {agent_score}, Episode: {episode+1}")
+        print(f"Final Score: {agent_score}, Episode: {episode+1}", flush=True)
+        
