@@ -14,29 +14,31 @@ device = "cpu"
 # print(device)
 
 
-class ActorCritic(nn.Module):
-    def __init__(self,  gamma=0.9, lr=1e-4):
-        super(ActorCritic, self).__init__()
-        self.fc1 = nn.Linear(16, 128)
-        self.fc2 = nn.Linear(128, 128)
-        self.actor = nn.Linear(128, 6)
-        
-        self.critic = nn.Linear(128, 1)
+class Policy(nn.Module):
+    def __init__(self, lr=0.001, gamma=0.99, dropout=0.1):
+        super(Policy, self).__init__()
+        self.affine1 = nn.Linear(16, 128)
+        self.affine2 = nn.Linear(128, 64)
+        self.affine3 = nn.Linear(64, 6)    # 輸出層
+        self.dropout = nn.Dropout(p=dropout)
 
-        self.log_probs = []
+        self.saved_log_probs = []
         self.rewards = []
-        self.values = []
+        self.ff = 0
         self.gamma = gamma
         self.lr = lr
 
         self.optimizer = optim.Adam(self.parameters(), lr=self.lr)
 
     def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        action_probs = F.softmax(self.actor(x), dim=-1)
-        state_value = self.critic(x)
-        return action_probs, state_value
+        x = self.affine1(x)
+        x = F.relu(x)
+        x = self.dropout(x)
+        x = self.affine2(x)
+        x = F.relu(x)
+        x = self.dropout(x)
+        action_scores = self.affine3(x)
+        return F.softmax(action_scores, dim=0)
 
 
 
@@ -51,22 +53,20 @@ class ActorCritic(nn.Module):
         rewards = reward2[::-1]
 
         rewards = torch.tensor(self.rewards).to(device)
-        # rewards = ((rewards) / (rewards.std() + eps)).to(device)
-
-        values = torch.cat(self.values).squeeze()
-        advantages = rewards - values
-        actor_loss = - (torch.stack(self.log_probs) * advantages.detach()).mean()
-        critic_loss = F.mse_loss(values, rewards)
-        loss = (actor_loss + critic_loss).to(device)
+        rewards = (rewards - rewards.mean()) / (rewards.std() + eps)
+        
+        policy_loss = []
+        for log_prob, R in zip(self.saved_log_probs, rewards):
+            policy_loss.append(-log_prob * R)
 
         self.optimizer.zero_grad()
-        loss.backward()
+        policy_loss = torch.stack(policy_loss).sum()
+        policy_loss.backward()
         self.optimizer.step()
-        del self.log_probs[:]
+        del self.saved_log_probs[:]
         del self.rewards[:]
-        del self.values[:]
 
-policy_model = ActorCritic().to(device)
+policy_model = Policy(lr=0.001, gamma=0.99, dropout=0.1)
 # policy_model.load_state_dict(torch.load("policy_model.pth"))
 
 policy_model.load_state_dict(torch.load("policy_model.pth", map_location=torch.device('cpu')))
@@ -77,8 +77,8 @@ policy_model.eval()
 eps = np.finfo(np.float32).eps.item()
 
 def get_action(obs):
-    obs = torch.tensor(obs, dtype=torch.float32).to(device)
-    probs, value = policy_model(obs)
+    obs = torch.tensor(obs, dtype=torch.float32)
+    probs = policy_model(obs)
     # if policy_model.ff == 1000:
     #     policy_model.ff += 1
     #     print(probs)
@@ -87,8 +87,7 @@ def get_action(obs):
 
     m = Categorical(probs)
     action = m.sample()
-    policy_model.log_probs.append(m.log_prob(action))
-    policy_model.values.append(value)
+    policy_model.saved_log_probs.append(m.log_prob(action))
     return action.item()
     
     # TODO: Train your own agent
